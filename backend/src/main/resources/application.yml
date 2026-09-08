@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/volatility?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 123456
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+  jackson:
+    time-zone: Asia/Shanghai
+
+app:
+  jwt-secret: volatility-analysis-secret-key-please-change
+  jwt-expire-hours: 12
+  python-base-url: http://localhost:9001
+  upload-path: ./uploads
+  deepseek-base-url: https://api.deepseek.com
+  deepseek-model: deepseek-chat
+  deepseek-temperature: 0.4
+  deepseek-max-tokens: 3000
+  deepseek-connect-timeout-ms: 10000
+  deepseek-read-timeout-ms: 300000
+  default-chart-spans:
+    - YEAR
+    - MONTH
+    - WEEK
+  default-confidence-level: 0.90
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

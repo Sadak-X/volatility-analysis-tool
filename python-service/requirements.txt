@@ -1,0 +1,8 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+pandas==2.2.3
+numpy==2.1.1
+scipy==1.14.1
+openpyxl==3.1.5
+akshare==1.18.54
+arch==7.1.0
