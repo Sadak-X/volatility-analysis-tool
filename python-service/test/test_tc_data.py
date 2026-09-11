@@ -595,4 +595,272 @@ def test_TC_DATA_027_confidence_interval_dynamic(monkeypatch):
 
     assert width99 > width90
 
+@pytest.mark.tc_data
+def test_TC_DATA_028_forecast_first_business_day_sigma_offset():
+    """TC-DATA-028: 验证预测第一天是否正确使用sigma索引"""
+    from app.services import forecast_service
 
+    sigma_full = [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+    ]
+
+    target_dates = [
+        pd.Timestamp("2024-02-01"),
+        pd.Timestamp("2024-02-02"),
+    ]
+
+    offsets = forecast_service.resolve_business_day_offsets(
+        pd.Timestamp("2024-01-31"),
+        target_dates
+    )
+
+    assert offsets[0] >= 1
+
+    assert offsets[0] != 0
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_029_yz_window_size_boundary():
+    """TC-DATA-029: YZ波动率窗口数量"""
+    from app.services.volatility_service import calculate_metrics
+
+    frame = pd.DataFrame(
+        {
+            "stock_code": ["000001"] * 21,
+            "trade_date": pd.date_range(
+                "2024-01-01",
+                periods=21,
+                freq="B"
+            ),
+            "open": np.linspace(
+                10,
+                11,
+                21
+            ),
+            "high": np.linspace(
+                10.1,
+                11.1,
+                21
+            ),
+            "low": np.linspace(
+                9.9,
+                10.9,
+                21
+            ),
+            "close": np.linspace(
+                10,
+                11,
+                21
+            ),
+        }
+    )
+
+
+    result = calculate_metrics(
+        frame,
+        window_size=20
+    )
+
+
+    assert "yzVolatility" in result
+
+    assert result["yzVolatility"] is not None
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_030_yz_volatility_no_nan_in_flat_market():
+    """TC-DATA-030:极小窗口情况下计算产生NaN传播"""
+    from app.services.volatility_service import calculate_metrics
+
+
+    frame = pd.DataFrame(
+        {
+            "stock_code": ["000001"] * 5,
+            "trade_date": pd.date_range(
+                "2024-01-01",
+                periods=5,
+                freq="B"
+            ),
+            "open": [10] * 5,
+            "high": [10] * 5,
+            "low": [10] * 5,
+            "close": [10] * 5,
+        }
+    )
+
+
+    result = calculate_metrics(
+        frame,
+        window_size=1
+    )
+
+
+    assert not np.isnan(
+        result["yzVolatility"]
+    )
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_031_garch_missing_parameter_fallback(monkeypatch):
+    """TC-DATA-031: GARCH模型返回参数缺失"""
+    from app.services import forecast_service
+
+
+    class BrokenFitResult:
+
+        convergence_flag = 0
+
+        params = {}
+
+        def forecast(self, horizon):
+            return None
+
+
+
+    class MockArch:
+
+        def fit(self, disp="off"):
+            return BrokenFitResult()
+
+
+
+    monkeypatch.setattr(
+        forecast_service,
+        "arch_model",
+        lambda *args, **kwargs: MockArch()
+    )
+
+
+    returns = pd.Series(
+        np.random.normal(
+            0,
+            0.01,
+            100
+        )
+    )
+
+
+    sigma, model_name, _ = (
+        forecast_service.fit_and_forecast_sigma(
+            returns,
+            20
+        )
+    )
+
+
+    assert model_name == "EWMA"
+
+    assert len(sigma) == 20
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_032_invalid_confidence_level():
+    """TC-DATA-032: 非法置信度输入"""
+    from app.services.forecast_service import build_forecast_summary_v2
+
+
+    target_dates = [
+        pd.Timestamp("2024-02-01")
+    ]
+
+    sigma = np.array(
+        [0.2]
+    )
+
+
+    with pytest.raises(Exception):
+
+        build_forecast_summary_v2(
+            target_dates,
+            sigma,
+            confidence_level=1.5
+        )
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_033_empty_donchian_summary():
+    """TC-DATA-033: 唐奇安通道为空"""
+    from app.services.volatility_service import (
+        build_donchian_summary
+    )
+
+
+    empty_result = {}
+
+
+    result = build_donchian_summary(
+        empty_result
+    )
+
+
+    assert result is not None
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_034_unsorted_market_data():
+    """TC-DATA-034: 输入行情日期乱序"""
+
+    from app.services.volatility_service import calculate_metrics
+
+
+    dates = [
+        pd.Timestamp("2024-01-05"),
+        pd.Timestamp("2024-01-01"),
+        pd.Timestamp("2024-01-03"),
+    ]
+
+
+    frame = pd.DataFrame(
+        {
+            "stock_code": [
+                "000001"
+            ] * 3,
+
+            "trade_date": dates,
+
+            "open": [
+                10,
+                10.2,
+                10.4
+            ],
+
+            "high": [
+                10.5,
+                10.7,
+                10.9
+            ],
+
+            "low": [
+                9.8,
+                10,
+                10.2
+            ],
+
+            "close": [
+                10.3,
+                10.5,
+                10.7
+            ],
+        }
+    )
+
+
+    result = calculate_metrics(
+        frame,
+        window_size=1
+    )
+
+
+    assert result is not None
+
+    assert "trendSeries" in result
