@@ -311,3 +311,288 @@ def test_TC_DATA_022_donchian_lower_break():
     """TC-DATA-022: 唐奇安通道下轨跌破"""
     assert build_donchian_summary(8, {"upper": 10, "lower": 8, "middle": 9}) == "当前价格靠近下轨，需关注下行波动放大"
 
+from decimal import Decimal
+
+
+def build_forecast_test_frame(days=120):
+    """构造预测测试行情数据"""
+    dates = pd.date_range(
+        "2024-01-01",
+        periods=days,
+        freq="B"
+    )
+
+    close = np.linspace(
+        10,
+        12,
+        days
+    )
+
+    return pd.DataFrame(
+        {
+            "stock_code": ["000001"] * days,
+            "trade_date": dates,
+            "close": close,
+        }
+    )
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_023_forecast_day_target_dates():
+    """
+    TC-DATA-023:
+    forecastType=DAY
+    应生成未来20个工作日预测序列
+    """
+    from app.services.forecast_service import forecast_frame
+
+    frame = build_forecast_test_frame(100)
+
+    result = forecast_frame(
+        frame,
+        "DAY",
+        Decimal("0.90")
+    )
+
+    assert result["forecastType"] == "DAY"
+
+    # DAY模式固定20个预测点
+    assert len(result["details"]) == 20
+
+    dates = [
+        item["date"]
+        for item in result["details"]
+    ]
+
+    assert len(dates) == 20
+    assert dates == sorted(dates)
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_024_garch_model_execute(monkeypatch):
+    """
+    TC-DATA-024:
+    大样本情况下触发GARCH模型
+    modelName = GARCH(1,1)
+    """
+    from app.services import forecast_service
+
+    class MockFitResult:
+
+        convergence_flag = 0
+
+        params = {
+            "alpha[1]": 0.05,
+            "beta[1]": 0.90,
+            "omega": 0.01,
+        }
+
+        def forecast(self, horizon):
+            class Forecast:
+
+                variance = pd.DataFrame(
+                    [
+                        [0.02] * horizon
+                    ]
+                )
+
+            return Forecast()
+
+
+    class MockArch:
+
+        def fit(self, disp="off"):
+            return MockFitResult()
+
+
+    def mock_arch_model(*args, **kwargs):
+        return MockArch()
+
+
+    monkeypatch.setattr(
+        forecast_service,
+        "arch_model",
+        mock_arch_model
+    )
+
+    returns = pd.Series(
+        np.random.normal(
+            0,
+            0.01,
+            100
+        )
+    )
+
+    sigma, model_name, _ = (
+        forecast_service.fit_and_forecast_sigma(
+            returns,
+            20
+        )
+    )
+
+    assert model_name == "GARCH(1,1)"
+    assert len(sigma) == 20
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_025_garch_failure_fallback_ewma(monkeypatch):
+    """
+    TC-DATA-025:
+    GARCH失败后降级EWMA
+    """
+    from app.services import forecast_service
+
+
+    class MockArch:
+
+        def fit(self, disp="off"):
+            raise RuntimeError(
+                "GARCH convergence failed"
+            )
+
+
+    monkeypatch.setattr(
+        forecast_service,
+        "arch_model",
+        lambda *args, **kwargs: MockArch()
+    )
+
+
+    returns = pd.Series(
+        np.random.normal(
+            0,
+            0.01,
+            100
+        )
+    )
+
+
+    sigma, model_name, _ = (
+        forecast_service.fit_and_forecast_sigma(
+            returns,
+            20
+        )
+    )
+
+
+    assert model_name == "EWMA"
+    assert len(sigma) == 20
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_026_small_sample_use_ewma(monkeypatch):
+    """
+    TC-DATA-026:
+    returns长度50
+    不满足GARCH >60条件
+    直接使用EWMA
+    """
+    from app.services import forecast_service
+
+
+    called = {
+        "garch": False
+    }
+
+
+    def mock_arch_model(*args, **kwargs):
+        called["garch"] = True
+
+
+    monkeypatch.setattr(
+        forecast_service,
+        "arch_model",
+        mock_arch_model
+    )
+
+
+    returns = pd.Series(
+        np.random.normal(
+            0,
+            0.01,
+            50
+        )
+    )
+
+
+    sigma, model_name, _ = (
+        forecast_service.fit_and_forecast_sigma(
+            returns,
+            20
+        )
+    )
+
+
+    assert called["garch"] is False
+    assert model_name == "EWMA"
+    assert len(sigma) == 20
+
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_027_confidence_interval_dynamic(monkeypatch):
+    """
+    TC-DATA-027:
+    confidenceLevel=0.99
+    置信区间宽度应大于0.90
+    """
+    from app.services.forecast_service import (
+        build_forecast_summary_v2
+    )
+    from statistics import NormalDist
+
+
+    target_dates = list(
+        pd.date_range(
+            "2024-02-01",
+            periods=20,
+            freq="B"
+        )
+    )
+
+    sigma = np.full(
+        20,
+        0.2
+    )
+
+
+    z90 = NormalDist().inv_cdf(
+        (1 + 0.90) / 2
+    )
+
+    z99 = NormalDist().inv_cdf(
+        (1 + 0.99) / 2
+    )
+
+
+    result90 = build_forecast_summary_v2(
+        target_dates,
+        sigma,
+        z90
+    )
+
+    result99 = build_forecast_summary_v2(
+        target_dates,
+        sigma,
+        z99
+    )
+
+
+    width90 = (
+        result90["ciUpper"]
+        -
+        result90["ciLower"]
+    )
+
+    width99 = (
+        result99["ciUpper"]
+        -
+        result99["ciLower"]
+    )
+
+
+    assert width99 > width90
+
+
