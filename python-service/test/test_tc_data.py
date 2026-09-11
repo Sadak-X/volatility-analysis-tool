@@ -105,3 +105,84 @@ def test_TC_DATA_007_compact_excel_normalization():
     assert normalized.iloc[0]["open"] == 10.5
     assert normalized.iloc[0]["high"] == 10.5
     assert normalized.iloc[0]["low"] == 10.5
+
+import numpy as np
+
+from app.services.volatility_service import (
+    calculate_metrics,
+    custom_span_days,
+    implied_volatility_newton,
+)
+
+
+def build_market_frame(rows=30, flat=False):
+    dates = pd.date_range("2024-01-01", periods=rows)
+    prices = np.full(rows, 10.0) if flat else np.linspace(10, 12, rows)
+    return pd.DataFrame({
+        "stock_code": ["000001"] * rows,
+        "trade_date": dates,
+        "open": prices,
+        "high": prices,
+        "low": prices,
+        "close": prices,
+    })
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_008_calculate_metrics_exact_window_boundary():
+    """TC-DATA-008: 数据量满足windowSize边界时成功计算"""
+    result = calculate_metrics(build_market_frame(30), window_size=20)
+    assert result["yzVolatility"] >= 0
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_009_calculate_metrics_insufficient_data():
+    """TC-DATA-009: 数据不足抛出ValueError"""
+    with pytest.raises(ValueError, match="有效数据不足"):
+        calculate_metrics(build_market_frame(29), window_size=20)
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_010_flat_market_yz_volatility_zero():
+    """TC-DATA-010: 平盘行情YZ波动率为0"""
+    result = calculate_metrics(build_market_frame(30, flat=True), window_size=20)
+    assert result["yzVolatility"] == 0.0
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_011_implied_volatility_newton_positive():
+    """TC-DATA-011: 牛顿法隐含波动率返回正值"""
+    value = implied_volatility_newton(10, 10, 30 / 365, 0.025, 0.25)
+    assert value > 0
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_012_vega_small_branch(monkeypatch):
+    """TC-DATA-012: vega极小时触发保护逻辑"""
+    from app.services import volatility_service
+    monkeypatch.setattr(volatility_service, "vega", lambda *args: 0.0)
+    monkeypatch.setattr(volatility_service, "black_scholes_call", lambda *args: 0.1)
+    value = volatility_service.implied_volatility_newton(10, 10, 30 / 365, 0.025, 0.2)
+    assert value > 0
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_013_insufficient_return_fallback_to_yz():
+    """TC-DATA-013: 收益样本不足时impliedValue回退YZ"""
+    from app.services.volatility_service import build_dual_volatility_series
+    frame = build_market_frame(30)
+    points, _, _ = build_dual_volatility_series(frame, list(frame["trade_date"].iloc[20:]), [0.2] * 10, 20)
+    assert points
+    assert all(item["value"] == item["impliedValue"] for item in points)
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_014_custom_span_mode():
+    """TC-DATA-014: CUSTOM_10解析成功"""
+    assert custom_span_days("CUSTOM_10") == 10
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_015_custom_span_out_of_range():
+    """TC-DATA-015: CUSTOM_300越界返回None"""
+    assert custom_span_days("CUSTOM_300") is None
