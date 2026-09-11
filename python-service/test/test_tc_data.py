@@ -186,3 +186,128 @@ def test_TC_DATA_014_custom_span_mode():
 def test_TC_DATA_015_custom_span_out_of_range():
     """TC-DATA-015: CUSTOM_300越界返回None"""
     assert custom_span_days("CUSTOM_300") is None
+
+from app.services.assessment_service import assess_frame
+from app.main import infer_trend, build_donchian_summary
+
+
+def build_assessment_frame(rows=80):
+    dates = pd.date_range("2024-01-01", periods=rows, freq="D")
+    prices = [10 + i * 0.01 for i in range(rows)]
+    return pd.DataFrame({
+        "stock_code": ["000001"] * rows,
+        "trade_date": dates,
+        "open": prices,
+        "high": [p + 0.1 for p in prices],
+        "low": [p - 0.1 for p in prices],
+        "close": prices,
+    })
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_016_low_risk_level_boundary():
+    """TC-DATA-016: 低风险综合评分判定"""
+    from app.services import assessment_service
+
+    def fake_calc(*args, **kwargs):
+        return {"yzVolatility": 1, "trendSeries": [{"value": 1}] * 20}
+
+    original = assessment_service.calculate_metrics
+    assessment_service.calculate_metrics = fake_calc
+    try:
+        result = assess_frame(build_assessment_frame(), 20)
+        assert result["riskLevel"] == "LOW"
+    finally:
+        assessment_service.calculate_metrics = original
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_017_medium_risk_level_boundary(monkeypatch):
+    """TC-DATA-017:中风险判定"""
+
+    from app.services import assessment_service
+
+
+    trend_values = [
+        100 + 0.001 * i
+        for i in range(20)
+    ]
+
+    yz_vol = trend_values[8] + 0.0001
+
+    monkeypatch.setattr(
+        assessment_service,
+        "calculate_metrics",
+        lambda *args, **kwargs: {
+            "yzVolatility": yz_vol,
+            "trendSeries": [
+                {"value": value}
+                for value in trend_values
+            ]
+        }
+    )
+
+    result = assess_frame(
+        build_assessment_frame(),
+        20
+    )
+
+    assert result["riskLevel"] == "MEDIUM"
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_018_high_risk_level_boundary(monkeypatch):
+    """TC-DATA-018:高风险判定"""
+
+    from app.services import assessment_service
+
+    trend_values = [
+        100 + 0.001 * i
+        for i in range(20)
+    ]
+
+    yz_vol = trend_values[9] + 0.0001
+
+    monkeypatch.setattr(
+        assessment_service,
+        "calculate_metrics",
+        lambda *args, **kwargs: {
+            "yzVolatility": yz_vol,
+            "trendSeries": [
+                {"value": value}
+                for value in trend_values
+            ]
+        }
+    )
+
+    result = assess_frame(
+        build_assessment_frame(),
+        20
+    )
+
+    assert result["riskLevel"] == "HIGH"
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_019_infer_trend_up():
+    """TC-DATA-019: 上行走势推断"""
+    assert infer_trend([{"value": 1}, {"value": 1.031}]) == "近期明显上行"
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_020_infer_trend_down():
+    """TC-DATA-020: 回落走势推断"""
+    assert infer_trend([{"value": 1}, {"value": 0.98}]) == "近期缓慢回落"
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_021_donchian_upper_break():
+    """TC-DATA-021: 唐奇安通道上轨突破"""
+    assert build_donchian_summary(10, {"upper": 10, "lower": 8, "middle": 9}) == "当前价格接近上轨，存在突破后的放大波动风险"
+
+
+@pytest.mark.tc_data
+def test_TC_DATA_022_donchian_lower_break():
+    """TC-DATA-022: 唐奇安通道下轨跌破"""
+    assert build_donchian_summary(8, {"upper": 10, "lower": 8, "middle": 9}) == "当前价格靠近下轨，需关注下行波动放大"
+
