@@ -607,6 +607,13 @@ const toNumber = (value?: number | string | null) => {
   return Number.isFinite(number) ? number : 0
 }
 
+
+const formatPercentValue = (value?: number | string | null) => {
+  if (value == null || value === '') return '-'
+  return `${toNumber(value).toFixed(2)}%`
+}
+
+
 const formatPercent = (value?: number | string | null) => {
   if (value == null || value === '') return '-'
   return `${(toNumber(value) * 100).toFixed(2)}%`
@@ -622,8 +629,8 @@ const formatPrice = (value?: number | string | null) => {
   return toNumber(value).toFixed(2)
 }
 
-const formatRange = (start?: number | string | null, end?: number | string | null) => `${formatPercent(start)} ~ ${formatPercent(end)}`
-
+const formatRange = (start?: number | string | null, end?: number | string | null) => 
+  `${formatPercentValue(start)} ~ ${formatPercentValue(end)}`
 const riskLabel = (riskLevel?: string) => {
   if (riskLevel === 'HIGH') return '高风险'
   if (riskLevel === 'LOW') return '低风险'

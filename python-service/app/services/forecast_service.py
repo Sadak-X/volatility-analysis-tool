@@ -165,4 +165,7 @@ def resolve_target_dates(last_trade_date: pd.Timestamp, forecast_type: str) -> l
 
 def resolve_business_day_offsets(last_trade_date: pd.Timestamp, target_dates: list[pd.Timestamp]) -> list[int]:
     start = last_trade_date + pd.offsets.BDay(1)
-    return [np.busday_count(start.date(), target_date.date()) for target_date in target_dates]
+    return [
+        int(np.busday_count(start.date(), target_date.date())) + 1
+        for target_date in target_dates
+    ]

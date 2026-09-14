@@ -348,4 +348,112 @@ const goToStep = (step: any) => {
 .step-indicator.step-pending {
   background: rgba(255, 255, 255, 0.2);
 }
+.shell-main {
+  flex: 1;
+  min-width: 0;        /* 关键：允许 flex 子项收缩 */
+  overflow-x: auto;    /* 内容超宽时可横向滚动，而不是撑破布局 */
+}
+
+/* 中等屏幕：缩小侧边栏内边距和品牌标题 */
+@media (max-width: 1200px) {
+  .shell-sidebar {
+    padding: 22px 14px 18px;
+  }
+
+  .shell-brand-title {
+    font-size: 24px;
+  }
+
+  .shell-brand-description {
+    font-size: 13px;
+  }
+}
+
+/* 窄屏：折叠侧边栏为图标条，或直接隐藏 */
+@media (max-width: 900px) {
+  .shell {
+    /* 如果 .shell 是 flex 容器，保持即可；这里假设是 flex/grid */
+    display: flex;
+  }
+
+  .shell-sidebar {
+    width: 64px;              /* 折叠成窄条 */
+    padding: 16px 8px;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  /* 隐藏品牌文案与用户信息，仅保留图标/菜单项 */
+  .shell-brand-block,
+  .shell-profile-label,
+  .shell-profile-name,
+  .shell-logout,
+  .shell-menu-section {
+    display: none;
+  }
+
+  /* 菜单项文字隐藏，仅留图标区域 */
+  .shell-menu :deep(.el-menu-item) {
+    padding: 0 8px !important;
+    justify-content: center;
+    font-size: 0;             /* 隐藏文字 */
+  }
+
+  .shell-menu :deep(.el-menu-item)::before {
+    font-size: 18px;
+    content: "•";             /* 占位图标，实际可换成 el-icon */
+  }
+}
+
+/* 手机屏：完全隐藏侧边栏，或改为抽屉式（此处简单隐藏） */
+@media (max-width: 640px) {
+  .shell-sidebar {
+    display: none;
+  }
+
+  .shell-main {
+    width: 100%;
+  }
+}
+/* 布局容器：显式声明 flex，不依赖全局样式 */
+.shell {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* 侧边栏：固定宽度，禁止收缩 */
+.shell-sidebar {
+  flex: 0 0 280px;      /* 不放大、不收缩，基准 280px */
+  width: 280px;
+  /* ...原有样式保留... */
+}
+
+/* 主内容区：占满剩余空间，允许内部滚动 */
+.shell-main {
+  flex: 1 1 auto;
+  min-width: 0;         /* 关键：允许 flex 子项收缩到内容以下 */
+  overflow-x: auto;
+  /* 若需要主内容独立滚动，可加 height: 100vh; overflow-y: auto; */
+}
+
+/* 窄屏折叠 */
+@media (max-width: 1200px) {
+  .shell-sidebar { flex-basis: 220px; width: 220px; }
+}
+
+@media (max-width: 900px) {
+  .shell-sidebar { flex-basis: 64px; width: 64px; }
+  .shell-brand-block,
+  .shell-profile-label,
+  .shell-profile-name,
+  .shell-logout,
+  .shell-menu-section { display: none; }
+  .shell-menu :deep(.el-menu-item) { font-size: 0; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  .shell-sidebar { display: none; }
+  .shell-main { width: 100%; }
+}
 </style>

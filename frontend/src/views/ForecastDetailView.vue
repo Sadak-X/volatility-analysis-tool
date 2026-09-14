@@ -35,7 +35,9 @@
           </div>
           <div class="metric-card">
             <div class="label">{{ detail?.isBatch ? '整体置信区间' : '置信区间' }}</div>
-            <div class="value" style="font-size: 18px">{{ formatPercent(detail?.ciLower) }} ~ {{ formatPercent(detail?.ciUpper) }}</div>
+            <div class="value" style="font-size: 18px">
+              {{ formatPercentValue(detail?.ciLower) }} ~ {{ formatPercentValue(detail?.ciUpper) }}
+            </div>
           </div>
           <div class="metric-card">
             <div class="label">风险等级</div>
@@ -79,7 +81,9 @@
               <template #default="{ row }">{{ formatPercent(row.predictVolatility) }}</template>
             </el-table-column>
             <el-table-column label="置信区间">
-              <template #default="{ row }">{{ formatPercent(row.ciLower) }} ~ {{ formatPercent(row.ciUpper) }}</template>
+                <template #default="{ row }">
+                  {{ formatPercentValue(row.ciLower) }} ~ {{ formatPercentValue(row.ciUpper) }}
+                </template>
             </el-table-column>
             <el-table-column prop="riskLevel" label="风险等级" width="110">
               <template #default="{ row }">{{ riskLabel(row.riskLevel) }}</template>
@@ -113,7 +117,22 @@ const detail = ref<any>(null)
 let pollTimer: number | undefined
 const selectedForecastSpan = ref<'DAY' | 'MONTH' | 'YEAR'>('MONTH')
 
-const formatPercent = (value?: number) => `${(Number(value || 0) * 100).toFixed(2)}%`
+const toNumber = (value?: number | string | null) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+// 用于已经是百分数形式的字段（ciLower / ciUpper）
+const formatPercentValue = (value?: number | string | null) => {
+  if (value == null || value === '') return '-'
+  return `${toNumber(value).toFixed(2)}%`
+}
+
+// 用于小数形式的字段（predictVolatility 等）
+const formatPercent = (value?: number | string | null) => {
+  if (value == null || value === '') return '-'
+  return `${(toNumber(value) * 100).toFixed(2)}%`
+}
 const terminalStatuses = ['FORECASTED', 'AI_DONE', 'FAILED', 'ARCHIVED']
 const forecastSpanOptions = [
   { value: 'DAY', label: '日' },

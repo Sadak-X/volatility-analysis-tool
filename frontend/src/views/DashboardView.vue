@@ -729,4 +729,14 @@ onMounted(async () => {
     flex-direction: column;
   }
 }
+
+.dashboard-page {
+  min-width: 0;      /* 防止 grid/flex 子项溢出 */
+}
+
+.market-trend-chart {
+  height: 280px;
+  margin-top: 12px;
+  width: 100%;       /* 明确宽度，配合 echarts autoresize */
+}
 </style>

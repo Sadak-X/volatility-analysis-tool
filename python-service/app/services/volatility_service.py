@@ -104,6 +104,19 @@ def build_calc_items(frames: list[pd.DataFrame], window_size: int, chart_span_mo
 
 def calculate_metrics(frame: pd.DataFrame, window_size: int, chart_span_modes: list[str] | None = None) -> dict[str, Any]:
     df = frame.copy()
+
+    if "trade_date" in df.columns:
+        df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce")
+        df = df.sort_values("trade_date").reset_index(drop=True)
+
+    if window_size < 2:
+        raise ValueError("window_size 必须 >= 2")
+
+    if len(df) < window_size + 2:
+        raise ValueError("有效数据不足，无法计算波动率")
+
+
+
     df["prev_close"] = df["close"].shift(1)
     df["log_oc"] = np.log(df["close"] / df["open"])
     df["log_co"] = np.log(df["open"] / df["prev_close"])
@@ -112,7 +125,7 @@ def calculate_metrics(frame: pd.DataFrame, window_size: int, chart_span_modes: l
     df["rs"] = df["log_ho"] * (df["log_ho"] - df["log_oc"]) + df["log_lo"] * (df["log_lo"] - df["log_oc"])
     df = df.dropna().reset_index(drop=True)
 
-    if len(df) < max(window_size + 2, 30):
+    if len(df) < window_size+1:
         raise ValueError("有效数据不足，无法计算波动率")
 
     yz_series = []
@@ -126,6 +139,8 @@ def calculate_metrics(frame: pd.DataFrame, window_size: int, chart_span_modes: l
         yz = np.sqrt(max(sigma_o + k * sigma_c + (1 - k) * sigma_rs, 0.0)) * np.sqrt(252)
         yz_series.append(float(yz))
         dates.append(window.iloc[-1]["trade_date"])
+    if not yz_series:
+        raise ValueError("有效数据不足，无法计算波动率")
 
     trend_series, implied_vol, implied_method = build_dual_volatility_series(frame, dates, yz_series, window_size)
     latest_yz = yz_series[-1]
@@ -161,6 +176,8 @@ def build_dual_volatility_series(
         risk_free_rate: float = 0.025,
         pricing_method: str = "garch",
 ) -> tuple[list[dict[str, Any]], float, str]:
+    if not dates or not yz_series:
+        return [], 0.0, "BSM_FAKE_OPTION_FAILED"
     historical_frame = pd.DataFrame(
         {
             "date": pd.to_datetime(dates, errors="coerce"),
