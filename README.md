@@ -59,9 +59,9 @@ npm run dev
 
 ### 测试概览
 
-目前包含20条自动化测试用例，分为两个主要测试模块：
+目前包含18条自动化测试用例，分为两个主要测试模块：
 Part 1 基础模块 (TC-FE-001 ~ TC-FE-010)：涵盖登录与路由守卫、全局布局、仪表盘图表渲染、Excel 文件上传与拦截等基础交互。
-Part 2 进阶模块 (TC-FE-011 ~ TC-FE-020)：涵盖任务列表状态增删、评估与 AI 分析弹窗、波动率预测弹窗、图表数值异常检测以及后端断开时的 API 容错。
+Part 2 进阶模块 (TC-FE-011 ~ TC-FE-018)：涵盖任务列表状态增删、评估与 AI 分析弹窗、波动率预测弹窗、图表数值异常检测。
 
 测试相关的代码主要集中在 `frontend` 目录下，结构如下：
 
@@ -75,7 +75,7 @@ frontend/
 │   │   └── dummy.txt            # 用于测试非Excel文件格式拦截
 │   ├── helpers.ts               # 公共工具方法
 │   ├── part1_basic.spec.ts      # TC-FE-001 ~ TC-FE-010
-│   └── part2_advanced.spec.ts   # TC-FE-011 ~ TC-FE-020
+│   └── part2_advanced.spec.ts   # TC-FE-011 ~ TC-FE-018
 └── ...
  ```
 
