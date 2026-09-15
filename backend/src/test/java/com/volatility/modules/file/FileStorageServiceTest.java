@@ -41,13 +41,13 @@ class FileStorageServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(appProperties.getUploadPath()).thenReturn(tempDir.toString());
         fileStorageService = new FileStorageService(dataSourceFileRepository, appProperties);
     }
 
     // TC-FILE-01
     @Test
     void uploadExcelSavesXlsxFileWhenValid() throws IOException {
+        when(appProperties.getUploadPath()).thenReturn(tempDir.toString());
         MultipartFile file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getOriginalFilename()).thenReturn("test.xlsx");
@@ -78,6 +78,7 @@ class FileStorageServiceTest {
     // TC-FILE-02
     @Test
     void uploadExcelSavesXlsFileWhenValid() throws IOException {
+        when(appProperties.getUploadPath()).thenReturn(tempDir.toString());
         MultipartFile file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getOriginalFilename()).thenReturn("test.xls");
@@ -130,6 +131,7 @@ class FileStorageServiceTest {
     // TC-FILE-05
     @Test
     void uploadExcelSucceedsWhenFileSizeIsExactly20MB() throws IOException {
+        when(appProperties.getUploadPath()).thenReturn(tempDir.toString());
         MultipartFile file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getOriginalFilename()).thenReturn("test.xlsx");
