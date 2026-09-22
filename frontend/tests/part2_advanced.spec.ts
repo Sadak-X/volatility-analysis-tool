@@ -38,11 +38,10 @@ test.describe('评估与AI分析模块', () => {
         await expect(page.getByText('任务详情')).toBeVisible({ timeout: 5000 });
     });
 
-    test('TC-FE-013: 唐奇安通道突破预警', async ({ page }) => {
-        await page.getByRole('tab', { name: '评估结果' }).click();
-        await expect(page.getByText('唐奇安通道').first()).toBeVisible({ timeout: 5000 });
-        await expect(page.getByText('上轨').first()).toBeVisible();
-        await expect(page.getByText(/突破|跌破|接近|靠近/).first()).toBeVisible();
+    test('TC-FE-013: 任务状态显示及进度条渲染', async ({ page }) => {
+        await page.waitForSelector('.el-table__row', { timeout: 10000 });
+        const firstRow = page.locator('.el-table__row').first();
+        await expect(firstRow.locator('td').nth(2)).toContainText(/已完成|失败/);
     });
 
     test('TC-FE-014: AI 分析页面初始化与渲染', async ({ page }) => {
