@@ -109,11 +109,35 @@ public class AiServiceTest {
         assertTrue(ex.getMessage().contains("DeepSeek 调用超时或网络异常，请稍后重试"));
     }
 
+
     @Test
-    void TC_AI_06_TestCleanDeepSeekResult() {
-        String dirtyJson = "```json\n{\"title\": \"分析结论\"}\n```";
-        String cleaned = ReflectionTestUtils.invokeMethod(aiService, "cleanDeepSeekResult", dirtyJson);
-        assertEquals("{\"title\": \"分析结论\"}", cleaned);
+    void TC_AI_06_TestAiNarrativeServiceJsonParseBug_ShouldPassAfterFix() {
+        // 1. 预置依赖：Mock jsonUtils.toJson，因为源码生成 inputHash 依赖它
+        when(jsonUtils.toJson(any())).thenReturn("{\"data\":1}");
+
+        // 2. 模拟大模型返回带有 Markdown 标签的脏数据
+        String dirtyJsonResponse = "```json\n{\"title\": \"波动率结论\"}\n```";
+        Map<String, Object> mockMessage = Map.of("content", dirtyJsonResponse);
+        Map<String, Object> mockChoice = Map.of("message", mockMessage);
+        Map<String, Object> mockBody = Map.of("choices", List.of(mockChoice));
+        ResponseEntity<Map<String, Object>> mockResponse = ResponseEntity.ok(mockBody);
+
+        when(restTemplate.exchange(
+                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)
+        )).thenReturn(mockResponse);
+
+        // 3. 核心修复验证：大模型脏数据经过你新加的 cleanDeepSeekResult 清洗后，会变成纯 JSON。
+        // 我们必须告诉 Mockito，当 jsonUtils 接收到这段干净的 JSON 时，正常转换并返回 Map！
+        String cleanedJson = "{\"title\": \"波动率结论\"}";
+        when(jsonUtils.toMap(cleanedJson)).thenReturn(Map.of("title", "波动率结论"));
+
+        // 4. 断言不会抛出异常，且能拿到正确结果
+        assertDoesNotThrow(() -> {
+            Map<String, Object> result = aiNarrativeService.generateAnalysisConclusion(Map.of("data", 1));
+
+            assertNotNull(result, "解析结果不应为 null，说明 jsonUtils.toMap 没拦截到清洗后的 JSON");
+            assertEquals("波动率结论", result.get("title"));
+        }, "系统应当能够容错处理带有 Markdown 标签的 JSON，而不是抛出解析异常");
     }
 
     @Test
@@ -213,4 +237,5 @@ public class AiServiceTest {
 
         assertTrue(ex.getMessage().contains("缺少波动率计算数据"));
     }
+
 }
