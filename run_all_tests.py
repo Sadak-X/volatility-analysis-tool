@@ -1,30 +1,3 @@
-#!/usr/bin/env python3
-"""
-run_all_tests.py
-================
-volatility-analysis-tool 一键运行全部测试
-
-  1. Python 单元测试  (pytest)     — python-service/test/
-  2. 前端 E2E 测试    (Playwright) — frontend/tests/
-  3. Java 后端测试    (JUnit)      — backend/  (Maven)
-
-目录结构（固定）：
-    volatility-analysis-tool/
-    ├── run_all_tests.py           ← 本脚本
-    ├── backend/                   Java 后端 (pom.xml)
-    ├── frontend/                  Vue 前端 (package.json, playwright.config.ts, tests/)
-    ├── python-service/            Python 数据分析 (conftest.py, app/, test/)
-    └── sql/
-
-用法：
-    python run_all_tests.py                # 全部
-    python run_all_tests.py --py           # 只跑 Python
-    python run_all_tests.py --skip-fe      # 跳过前端
-    python run_all_tests.py --fe --java    # 只跑前端 + Java
-
-环境变量（可选覆盖）：
-    PY_DIR / FE_DIR / JAVA_DIR
-"""
 from __future__ import annotations
 
 import argparse
@@ -38,9 +11,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# ---------------------------------------------------------------------------
-# 目录定位：环境变量优先，其次默认目录名
-# ---------------------------------------------------------------------------
 
 def _pick_dir(env_var: str, default_name: str) -> Path:
     if env_var in os.environ:
@@ -52,15 +22,9 @@ PY_DIR   = _pick_dir("PY_DIR",   "python-service")
 FE_DIR   = _pick_dir("FE_DIR",   "frontend")
 JAVA_DIR = _pick_dir("JAVA_DIR", "backend")
 
-# Python 测试实际所在的子目录候选（兼容 test/ 与 tests/）
 PY_TEST_SUBDIRS = ["test", "tests"]
 
-# 前端 Playwright 用例目录候选
 FE_TEST_SUBDIRS = ["tests", "e2e", "test"]
-
-# ---------------------------------------------------------------------------
-# 工具
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Result:
@@ -96,12 +60,11 @@ def resolve_cmd(cmd: list[str]) -> list[str]:
 
     exe = cmd[0]
 
-    # which 本身就会尝试 PATHEXT，直接用它返回的完整路径
+
     p = shutil.which(exe)
     if p:
         return [p] + cmd[1:]
 
-    # 兜底：显式尝试常见后缀
     for ext in (".cmd", ".exe", ".bat"):
         p = shutil.which(exe + ext)
         if p:
@@ -140,10 +103,6 @@ def first_existing(base: Path, names: list[str]) -> Path | None:
             return p
     return None
 
-# ---------------------------------------------------------------------------
-# 1) Python (pytest)
-# ---------------------------------------------------------------------------
-
 def run_python() -> Result:
     name = "Python (pytest)"
     if not PY_DIR.exists():
@@ -153,7 +112,6 @@ def run_python() -> Result:
     if not list(test_dir.glob("test_*.py")):
         return skip(name, f"{test_dir} 下未找到 test_*.py")
 
-    # 选择 pytest 入口
     if has("pytest"):
         base_cmd = ["pytest"]
     else:
@@ -164,14 +122,10 @@ def run_python() -> Result:
         except Exception:
             return skip(name, "未安装 pytest (pip install pytest)")
 
-    # 关键：从 PY_DIR 运行 pytest，让 conftest.py 生效，
-    # 并把 app 包加入 sys.path（conftest.py 里已经处理）
+
     cmd = base_cmd + ["-v", "--tb=short", str(test_dir.relative_to(PY_DIR))]
     return run(name, cmd, PY_DIR)
 
-# ---------------------------------------------------------------------------
-# 2) 前端 (Playwright)
-# ---------------------------------------------------------------------------
 
 def run_frontend() -> Result:
     name = "前端 (Playwright)"
@@ -196,9 +150,6 @@ def run_frontend() -> Result:
 
     return run(name, cmd, FE_DIR)
 
-# ---------------------------------------------------------------------------
-# 3) Java (Maven / Gradle)
-# ---------------------------------------------------------------------------
 
 def run_java() -> Result:
     name = "Java (JUnit)"
@@ -222,9 +173,6 @@ def run_java() -> Result:
 
     return run(name, cmd, JAVA_DIR)
 
-# ---------------------------------------------------------------------------
-# 汇总
-# ---------------------------------------------------------------------------
 
 def print_summary(results: list[Result]) -> int:
     print("\n" + "═" * 72)
@@ -244,9 +192,7 @@ def print_summary(results: list[Result]) -> int:
     print(f"\033[1;31m存在失败 ✘   ({failed}/{len(results)} 个套件失败)\033[0m")
     return 1
 
-# ---------------------------------------------------------------------------
-# 入口
-# ---------------------------------------------------------------------------
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="volatility-analysis-tool 一键运行全部测试")
@@ -258,7 +204,6 @@ def main() -> int:
     ap.add_argument("--skip-java", action="store_true")
     args = ap.parse_args()
 
-    # 选择套件
     if args.py or args.fe or args.java:
         selected = set()
         if args.py:
