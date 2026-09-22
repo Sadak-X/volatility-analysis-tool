@@ -32,20 +32,19 @@ public class AiNarrativeService {
     private final AiConclusionRepository conclusionRepository;
 
     public AiNarrativeService(@Qualifier("deepSeekRestTemplate") RestTemplate restTemplate,
-                              AppProperties appProperties,
-                              JsonUtils jsonUtils,
-                              AiConclusionRepository conclusionRepository) {
+            AppProperties appProperties,
+            JsonUtils jsonUtils,
+            AiConclusionRepository conclusionRepository) {
         this.restTemplate = restTemplate;
         this.appProperties = appProperties;
         this.jsonUtils = jsonUtils;
         this.conclusionRepository = conclusionRepository;
     }
 
-
     private Map<String, Object> generateNarrativeCached(String module,
-                                                        Map<String, Object> inputData,
-                                                        String systemPrompt,
-                                                        String userPromptTemplate) {
+            Map<String, Object> inputData,
+            String systemPrompt,
+            String userPromptTemplate) {
 
         String inputJson = jsonUtils.toJson(inputData);
         String inputHash = sha256(module + ":" + inputJson);
@@ -69,7 +68,6 @@ public class AiNarrativeService {
 
         return jsonUtils.toMap(rawJson);
     }
-
 
     public Map<String, Object> generateAnalysisConclusion(Map<String, Object> data) {
         String system = "你是一个股票波动率分析专家。请根据提供的数据生成分析结论。"
@@ -114,23 +112,28 @@ public class AiNarrativeService {
 
         var response = restTemplate.exchange(url, HttpMethod.POST,
                 new HttpEntity<>(body, headers),
-                new ParameterizedTypeReference<Map<String, Object>>() {});
+                new ParameterizedTypeReference<Map<String, Object>>() {
+                });
 
         Map<String, Object> respBody = response.getBody();
-        if (respBody == null) throw new BusinessException(5001, "DeepSeek 返回为空");
+        if (respBody == null)
+            throw new BusinessException(5001, "DeepSeek 返回为空");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> choices = (List<Map<String, Object>>) respBody.get("choices");
-        if (choices == null || choices.isEmpty()) throw new BusinessException(5001, "DeepSeek 未返回结果");
+        if (choices == null || choices.isEmpty())
+            throw new BusinessException(5001, "DeepSeek 未返回结果");
 
         @SuppressWarnings("unchecked")
         Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-        if (message == null) throw new BusinessException(5001, "消息为空");
+        if (message == null)
+            throw new BusinessException(5001, "消息为空");
 
         String content = String.valueOf(message.get("content")).trim();
-        if (!StringUtils.hasText(content)) throw new BusinessException(5001, "内容为空");
+        if (!StringUtils.hasText(content))
+            throw new BusinessException(5001, "内容为空");
 
-        return content;
+        return cleanDeepSeekResult(content);
     }
 
     private String sha256(String input) {
@@ -141,5 +144,28 @@ public class AiNarrativeService {
         } catch (Exception e) {
             throw new IllegalStateException("SHA-256 计算失败", e);
         }
+    }
+
+    private String cleanDeepSeekResult(String raw) {
+        if (raw == null || raw.isBlank())
+            return "";
+        String cleaned = raw.trim();
+
+        // 剥离外层的 ``` 标签
+        if (cleaned.startsWith("```")) {
+            int end = cleaned.indexOf("\n");
+            if (end > 0) {
+                cleaned = cleaned.substring(end + 1);
+            }
+            if (cleaned.endsWith("```")) {
+                cleaned = cleaned.substring(0, cleaned.length() - 3);
+            }
+        }
+
+        // 移除可能残留的 json 或 markdown 标识符
+        cleaned = cleaned.replaceFirst("^(markdown|json)\\s*\\n", "");
+        cleaned = cleaned.strip();
+
+        return cleaned;
     }
 }
